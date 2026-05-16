@@ -309,11 +309,15 @@
     --line: #e3e6ef;
     --accent: #c81515;
     --accent-dark: #8c0d0d;
+    --brand-red: #fe0706;
     --prevent: #e63946;
     --defense: #1d4ed8;
     --architecture: #0891b2;
     --governance: #b45309;
-    --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    /* Aligné sur font-serif du site (voir index.html / @font-face Baskervville). */
+    --font-serif: Baskervville, Georgia, Cambria, "Times New Roman", serif;
+    /* Étiquettes piliers : capsule type badge contact (fond blanc, bordure gris violet). */
+    --pillar-tag-border: #746f7d;
 
     /* Le composant : simple conteneur transparent (pas de carte, pas de fond,
        pas d'ombre) pour que tout ce qui derrière reste visible. */
@@ -331,7 +335,7 @@
     overflow: visible;
     box-sizing: border-box;
     color: var(--ink);
-    font-family: var(--font-sans);
+    font-family: var(--font-serif);
     -webkit-font-smoothing: antialiased;
     animation: cardAppear 0.6s cubic-bezier(.2,.8,.2,1) both;
 
@@ -356,15 +360,24 @@
    la cascade démarre. */
 :host,
 :host .pillar,
-:host .hex,
+:host .hex polygon,
+:host .hex .hex-label,
 :host .pillar-tag {
     animation-play-state: paused;
 }
 :host(.is-visible),
 :host(.is-visible) .pillar,
-:host(.is-visible) .hex,
+:host(.is-visible) .hex polygon,
+:host(.is-visible) .hex .hex-label,
 :host(.is-visible) .pillar-tag {
     animation-play-state: running;
+}
+
+/* Pause la respiration au survol : évite le combat animation ↔ feedback hover */
+:host(.is-visible) .pillar-tag:hover,
+:host(.is-visible) .pillar-tag:focus-visible,
+:host(.is-visible) .pillar-tag:active {
+    animation-play-state: paused;
 }
 
 * { box-sizing: border-box; }
@@ -389,33 +402,61 @@
     from { opacity: 0; transform: translateY(12px) scale(0.985); }
     to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+/* Piliers : léger zoom depuis le centre du cercle. */
+@keyframes pillarReveal {
+    from {
+        opacity: 0;
+        transform: scale(0.82);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
+
+/* Hexagones : forme qui « pose », texte qui monte légèrement. */
+@keyframes hexPolyReveal {
+    from {
+        opacity: 0;
+        transform: scale(0.74);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+@keyframes hexLabelReveal {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 @keyframes tagAppear {
-    /* Arrivée : léger déficit d’échelle puis neutre avant la boucle breathe. */
-    from { opacity: 0; --breathe: 0.93; }
-    to   { opacity: 1; --breathe: 1; }
-}
-@keyframes tagBreathe {
-    /* Inspiration → micro-apnée → expiration plus longue (rythme
-       respiratoire). Courbes ci-dessous : durée de montée courte,
-       descente amortie. Toujours --breathe uniquement (GPU léger). */
-    0% {
+    from {
+        opacity: 0;
+        --breathe: 0.88;
+    }
+    to {
+        opacity: 1;
         --breathe: 1;
-        animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
     }
-    36% {
-        --breathe: 1.055;
-        animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
-    }
-    52% {
-        --breathe: 1.04;
-        animation-timing-function: cubic-bezier(0.22, 0.72, 0.25, 1);
-    }
+}
+
+/* Repos : respiration très lente et à peine perceptible (scale via --breathe). */
+@keyframes tagRestBreath {
+    0%,
     100% {
         --breathe: 1;
+        animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+    }
+    50% {
+        --breathe: 1.006;
+        animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
     }
 }
 
@@ -429,8 +470,14 @@
     transition: all 0.3s ease;
     pointer-events: all;
     outline: none;
-    animation: fadeIn 0.5s ease-out 0.3s both;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: pillarReveal 0.58s cubic-bezier(.22,.88,.24,1) both;
 }
+.pillar[data-pillar="prevent"]      { animation-delay: 0.04s; }
+.pillar[data-pillar="defense"]      { animation-delay: 0.1s; }
+.pillar[data-pillar="architecture"] { animation-delay: 0.16s; }
+.pillar[data-pillar="governance"]   { animation-delay: 0.22s; }
 .pillar:focus { outline: none; }
 .pillar[data-pillar="prevent"]      { stroke: var(--prevent);      fill: var(--prevent); }
 .pillar[data-pillar="defense"]      { stroke: var(--defense);      fill: var(--defense); }
@@ -456,72 +503,73 @@
     cursor: pointer;
     transition: opacity 0.2s ease;
     outline: none;
-    animation: fadeIn 0.45s ease-out both;
 }
 .hex:focus { outline: none; }
 
-.hex[data-hex="iam"]                  { animation-delay: 0.50s; }
-.hex[data-hex="domain-security"]      { animation-delay: 0.58s; }
-.hex[data-hex="products-services"]    { animation-delay: 0.62s; }
-.hex[data-hex="asset-classification"] { animation-delay: 0.62s; }
-.hex[data-hex="end-users"]            { animation-delay: 0.70s; }
-.hex[data-hex="info-protection"]      { animation-delay: 0.70s; }
-.hex[data-hex="business-app"]         { animation-delay: 0.74s; }
-.hex[data-hex="security-hygiene"]     { animation-delay: 0.78s; }
-.hex[data-hex="software-dev"]         { animation-delay: 0.78s; }
-.hex[data-hex="third-party"]          { animation-delay: 0.85s; }
-
 .hex polygon {
-    fill: url(#hexGrad);
-    stroke: #cbd5e1;
+    fill: #000;
+    stroke: #475569;
     stroke-width: 1.2;
     filter: url(#hexShadow);
     transform-box: fill-box;
     transform-origin: center;
     transition: fill 0.25s ease, stroke 0.25s ease, stroke-width 0.25s ease,
                 filter 0.25s ease, transform 0.25s cubic-bezier(.2,.8,.2,1);
+    animation: hexPolyReveal 0.52s cubic-bezier(.22,.88,.24,1) both;
 }
-
-.hex[data-hex="info-protection"]      polygon { fill: url(#hg-info-protection); }
-.hex[data-hex="business-app"]         polygon { fill: url(#hg-business-app); }
-.hex[data-hex="software-dev"]         polygon { fill: url(#hg-software-dev); }
-.hex[data-hex="domain-security"]      polygon { fill: url(#hg-domain-security); }
-.hex[data-hex="security-hygiene"]     polygon { fill: url(#hg-security-hygiene); }
-.hex[data-hex="end-users"]            polygon { fill: url(#hg-end-users); }
-.hex[data-hex="asset-classification"] polygon { fill: url(#hg-asset-classification); }
-.hex[data-hex="products-services"]    polygon { fill: url(#hg-products-services); }
-.hex[data-hex="third-party"]          polygon { fill: url(#hg-third-party); }
-.hex[data-hex="iam"]                  polygon { fill: url(#hg-iam); }
 
 .hex .hex-label {
     text-anchor: middle;
-    font-family: var(--font-sans);
+    font-family: var(--font-serif);
     font-size: 14px;
     font-weight: 700;
-    fill: #fe0706;
+    fill: #fff;
     stroke: none;
     pointer-events: none;
     user-select: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hexLabelReveal 0.4s cubic-bezier(.22,.88,.24,1) both;
+    transition: fill 0.22s ease;
 }
+
+.hex[data-hex="iam"] polygon                  { animation-delay: 0.32s; }
+.hex[data-hex="iam"] .hex-label              { animation-delay: 0.4s; }
+.hex[data-hex="domain-security"] polygon      { animation-delay: 0.38s; }
+.hex[data-hex="domain-security"] .hex-label  { animation-delay: 0.46s; }
+.hex[data-hex="products-services"] polygon    { animation-delay: 0.42s; }
+.hex[data-hex="products-services"] .hex-label { animation-delay: 0.5s; }
+.hex[data-hex="asset-classification"] polygon { animation-delay: 0.46s; }
+.hex[data-hex="asset-classification"] .hex-label { animation-delay: 0.54s; }
+.hex[data-hex="end-users"] polygon            { animation-delay: 0.5s; }
+.hex[data-hex="end-users"] .hex-label        { animation-delay: 0.58s; }
+.hex[data-hex="info-protection"] polygon      { animation-delay: 0.54s; }
+.hex[data-hex="info-protection"] .hex-label   { animation-delay: 0.62s; }
+.hex[data-hex="business-app"] polygon         { animation-delay: 0.58s; }
+.hex[data-hex="business-app"] .hex-label     { animation-delay: 0.66s; }
+.hex[data-hex="security-hygiene"] polygon     { animation-delay: 0.62s; }
+.hex[data-hex="security-hygiene"] .hex-label { animation-delay: 0.7s; }
+.hex[data-hex="software-dev"] polygon        { animation-delay: 0.66s; }
+.hex[data-hex="software-dev"] .hex-label      { animation-delay: 0.74s; }
+.hex[data-hex="third-party"] polygon          { animation-delay: 0.72s; }
+.hex[data-hex="third-party"] .hex-label       { animation-delay: 0.8s; }
 .hex .hex-label.small {
     font-size: 12px;
     font-weight: 700;
-    fill: #fe0706;
+    fill: #fff;
 }
 
 .hex:hover polygon {
-    fill: hsl(215, 38%, 82%);
-    stroke: #94a3b8;
+    fill: #000;
+    stroke: #64748b;
     stroke-width: 1.8;
     transform: scale(1.04);
     filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.2));
 }
 
-.hex:hover .hex-label { fill: #fe0706; }
-
 .hex.is-active polygon {
-    fill: var(--accent);
-    stroke: var(--accent-dark);
+    fill: #000;
+    stroke: var(--accent);
     stroke-width: 1.8;
 }
 .hex.is-active .hex-label { fill: #fff; }
@@ -534,17 +582,23 @@
 #diagram[data-active-pillar="governance"]   { --pillar-fill: hsl(32,  34%, 14%); --pillar-stroke: var(--governance); }
 
 .hex.is-highlight polygon {
-    fill: var(--pillar-fill, hsl(222, 40%, 14%));
+    fill: #000;
     stroke: var(--pillar-stroke, var(--accent-dark));
     stroke-width: 1.5;
 }
 
 .hex.is-highlight .hex-label { fill: #ffffff; }
 
-.hex-core polygon { stroke-width: 1.5; fill: url(#hg-iam); }
+/* Au survol : étiquettes en rouge marque (priorité sur actif / surbrillance pilier). */
+.hex:hover .hex-label,
+.hex.is-active:hover .hex-label,
+.hex.is-highlight:hover .hex-label {
+    fill: var(--brand-red);
+}
 
-/* ---- Étiquettes pilier (carte type “call card” : icône ronde + texte en colonne) ----
-   Font-size en cqw ; paddings / rayons en em pour suivre la taille du host. */
+.hex-core polygon { stroke-width: 1.5; fill: #000; }
+
+/* ---- Étiquettes pilier : capsule (icône + deux lignes, style badge contact). ---- */
 .pillar-tag {
     --pt-color: #0f172a;
     --pt-rgb: 15, 23, 42;
@@ -553,20 +607,18 @@
     z-index: 5;
     display: inline-flex;
     align-items: center;
-    gap: 0.75em;
-    padding: 0.75em 1em 0.75em 0.75em;
-    border-radius: 1.1em;
+    gap: 0.85em;
+    padding: 0.62em 1.2em 0.62em 0.72em;
+    border-radius: 999px;
 
     background: #ffffff;
-    color: #0e1629;
+    color: #0a0a0a;
     font-size: clamp(8.5px, 1.45cqw, 12.5px);
-    line-height: 1.25;
+    line-height: 1.2;
     letter-spacing: 0.01em;
 
-    border: 1px solid #e2e8f0;
-    box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.04),
-        0 4px 14px rgba(15, 23, 42, 0.06);
+    border: 3px solid var(--pillar-tag-border);
+    box-shadow: none;
 
     box-sizing: border-box;
     flex-shrink: 0;
@@ -578,24 +630,21 @@
     isolation: isolate;
     will-change: transform;
     backface-visibility: hidden;
-    transform: translate3d(var(--tx, 0%), var(--ty, 0%), 0) scale(var(--breathe, 1));
+    transform: translate3d(var(--tx, 0%), var(--ty, 0%), 0) scale(var(--breathe));
     transition:
-        box-shadow 0.2s ease,
-        border-color 0.2s ease,
-        background 0.2s ease,
-        color 0.2s ease;
+        border-color 0.22s ease,
+        color 0.22s ease;
     outline: none;
     animation:
-        tagAppear  0.55s cubic-bezier(.2,.82,.14,1) both,
-        tagBreathe 6.75s cubic-bezier(.45,.02,.55,.98) infinite;
-    animation-delay: 0.95s, 1.72s;
+        tagAppear 0.62s cubic-bezier(.2,.82,.14,1) both,
+        tagRestBreath 18s cubic-bezier(0.42, 0, 0.58, 1) infinite;
     transform-origin: center;
 }
 
-.pillar-tag.pt-prevent      { animation-delay: 0.95s, 1.65s; }
-.pillar-tag.pt-defense      { animation-delay: 0.95s, 1.93s; }
-.pillar-tag.pt-architecture { animation-delay: 0.95s, 2.22s; }
-.pillar-tag.pt-governance   { animation-delay: 0.95s, 2.48s; }
+.pillar-tag.pt-prevent      { animation-delay: 1.02s, 1.64s; }
+.pillar-tag.pt-defense      { animation-delay: 1.08s, 1.7s; }
+.pillar-tag.pt-architecture { animation-delay: 1.14s, 1.76s; }
+.pillar-tag.pt-governance   { animation-delay: 1.2s, 1.82s; }
 
 .pt-prevent      { --pt-color: var(--prevent);      --pt-rgb: 230, 57, 70; }
 .pt-defense      { --pt-color: var(--defense);      --pt-rgb: 29, 78, 216; }
@@ -604,37 +653,66 @@
 
 .pillar-tag:hover,
 .pillar-tag:focus-visible {
-    transform: translate3d(var(--tx, 0%), var(--ty, 0%), 0) scale(var(--breathe, 1));
-    border-color: #cbd5e1;
-    box-shadow:
-        0 2px 4px rgba(15, 23, 42, 0.06),
-        0 8px 24px rgba(15, 23, 42, 0.1);
+    border-color: var(--pt-color);
+    background-color: #ffffff;
+}
+
+.pillar-tag:hover .pt-text,
+.pillar-tag:focus-visible .pt-text {
+    color: var(--pt-color);
+}
+
+.pillar-tag:hover .pt-kind,
+.pillar-tag:focus-visible .pt-kind {
+    color: var(--pt-color);
+    opacity: 0.82;
 }
 
 .pillar-tag:active {
-    transform: translate3d(var(--tx, 0%), var(--ty, 0%), 0)
-        scale(calc(var(--breathe, 1) * 0.985));
-    box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.05),
-        0 2px 8px rgba(15, 23, 42, 0.06);
-    transition-duration: 0.06s;
+    border-color: var(--pt-color);
+    background-color: #ffffff;
+}
+
+.pillar-tag:active .pt-text,
+.pillar-tag:active .pt-kind {
+    color: var(--pt-color);
 }
 
 .pillar-tag.is-active {
-    background: var(--pt-color);
-    color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.35);
-    box-shadow:
-        0 2px 8px rgba(14, 22, 41, 0.2),
-        0 8px 28px rgba(14, 22, 41, 0.12);
+    background: #ffffff;
+    color: #0a0a0a;
+    border-color: var(--pt-color);
+    border-width: 3px;
+    box-shadow: 0 0 0 1px rgba(10, 10, 10, 0.06);
 }
 
 .pillar-tag.is-active .pt-text {
-    color: #ffffff;
+    color: #0a0a0a;
 }
 
 .pillar-tag.is-active .pt-kind {
-    color: rgba(255, 255, 255, 0.88);
+    color: #0a0a0a;
+    opacity: 0.88;
+}
+
+/* Au survol, même pilier déjà actif : le feedback couleur prime sur l’état repos */
+.pillar-tag.is-active:hover,
+.pillar-tag.is-active:focus-visible {
+    border-color: var(--pt-color);
+    background-color: #ffffff;
+}
+
+.pillar-tag.is-active:hover .pt-text,
+.pillar-tag.is-active:focus-visible .pt-text,
+.pillar-tag.is-active:active .pt-text {
+    color: var(--pt-color);
+}
+
+.pillar-tag.is-active:hover .pt-kind,
+.pillar-tag.is-active:focus-visible .pt-kind,
+.pillar-tag.is-active:active .pt-kind {
+    color: var(--pt-color);
+    opacity: 0.82;
 }
 
 .pillar-tag .pt-icon {
@@ -647,9 +725,9 @@
 
 .pillar-tag .pt-icon svg {
     display: block;
-    width: 1.82em;
+    width: 2em;
     height: auto;
-    max-height: 2.12em;
+    max-height: 2.25em;
     flex-shrink: 0;
 }
 
@@ -657,30 +735,35 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.2em;
+    gap: 0.1em;
     min-width: 0;
 }
 
-.pillar-tag .pt-text {
-    display: block;
-    font-weight: 700;
-    font-size: 1.08em;
-    letter-spacing: 0.01em;
-    color: #0e1629;
-    line-height: 1.2;
-}
-
+/* Ligne du haut : serif, plus petite (équivalent ligne d’accroche). */
 .pillar-tag .pt-kind {
     display: block;
+    font-family: var(--font-serif);
     font-weight: 400;
-    font-size: 0.84em;
+    font-size: 0.86em;
     letter-spacing: 0.02em;
     text-transform: none;
-    color: #64748b;
+    color: #0a0a0a;
+    line-height: 1.15;
     background: transparent;
     border: none;
     padding: 0;
     margin: 0;
+}
+
+/* Titre du pilier : serif gras, plus marqué. */
+.pillar-tag .pt-text {
+    display: block;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 1.14em;
+    letter-spacing: 0.01em;
+    color: #0a0a0a;
+    line-height: 1.15;
 }
 
 /* Position de chaque tag (ancrage diagramme) */
@@ -701,14 +784,31 @@
     :host,
     .pillar,
     .hex,
+    .hex polygon,
+    .hex .hex-label,
     .pillar-tag,
     .pillar-tag::after,
     .pillar-tag::before {
         animation: none !important;
         transition: none !important;
     }
+    :host {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    .pillar {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    .hex polygon,
+    .hex .hex-label {
+        opacity: 1 !important;
+        transform: none !important;
+    }
     .pillar-tag {
         will-change: auto !important;
+        opacity: 1 !important;
+        transform: translate3d(var(--tx, 0%), var(--ty, 0%), 0) scale(1) !important;
     }
 }`;
 
@@ -720,40 +820,6 @@
          xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="Interactive diagram of cybersecurity pillars and capabilities">
         <defs>
-            <!-- Fonds hex : famille #e2e8f0 (H≈215°), même écarts de saturation qu’avant entre hex. -->
-            <radialGradient id="hexGrad" cx="50%" cy="38%" r="72%">
-                <stop offset="0%" stop-color="hsl(215, 32%, 93%)"/><stop offset="100%" stop-color="hsl(215, 44%, 86%)"/>
-            </radialGradient>
-            <radialGradient id="hg-info-protection"      cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 22%, 94%)"/><stop offset="100%" stop-color="hsl(215, 38%, 87%)"/>
-            </radialGradient>
-            <radialGradient id="hg-business-app"         cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 40%, 92%)"/><stop offset="100%" stop-color="hsl(215, 52%, 84%)"/>
-            </radialGradient>
-            <radialGradient id="hg-software-dev"         cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 28%, 94%)"/><stop offset="100%" stop-color="hsl(215, 36%, 87%)"/>
-            </radialGradient>
-            <radialGradient id="hg-domain-security"      cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 18%, 94.5%)"/><stop offset="100%" stop-color="hsl(215, 32%, 87%)"/>
-            </radialGradient>
-            <radialGradient id="hg-security-hygiene"     cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 46%, 91.5%)"/><stop offset="100%" stop-color="hsl(215, 42%, 84%)"/>
-            </radialGradient>
-            <radialGradient id="hg-end-users"            cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 26%, 93.5%)"/><stop offset="100%" stop-color="hsl(215, 48%, 84%)"/>
-            </radialGradient>
-            <radialGradient id="hg-asset-classification" cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 20%, 94%)"/><stop offset="100%" stop-color="hsl(215, 40%, 86.5%)"/>
-            </radialGradient>
-            <radialGradient id="hg-products-services"    cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 35%, 93%)"/><stop offset="100%" stop-color="hsl(215, 45%, 85%)"/>
-            </radialGradient>
-            <radialGradient id="hg-third-party"          cx="50%" cy="32%" r="82%">
-                <stop offset="0%" stop-color="hsl(215, 30%, 93%)"/><stop offset="100%" stop-color="hsl(215, 38%, 86.5%)"/>
-            </radialGradient>
-            <radialGradient id="hg-iam"                  cx="50%" cy="30%" r="85%">
-                <stop offset="0%" stop-color="hsl(215, 42%, 93%)"/><stop offset="100%" stop-color="hsl(215, 50%, 84%)"/>
-            </radialGradient>
             <filter id="hexShadow" x="-15%" y="-15%" width="130%" height="130%">
                 <feDropShadow dx="0" dy="2" stdDeviation="1" flood-color="#000" flood-opacity="0.12"/>
             </filter>
@@ -834,31 +900,31 @@
     </svg>
 
     <div class="pillar-tag pt-prevent" data-pillar-tag="prevent">
-        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.024133 11.02465" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-211.86768,-335.29324)"><path fill="#fe0708" d="m 222.38901,338.5044 -2.40709,0.4656 a 3.1843031,3.1843031 0 0 1 0.58239,1.83555 3.1843031,3.1843031 0 0 1 -0.85369,2.16938 l 2.50114,0.48369 a 5.5122003,5.5122003 0 0 0 0.68006,-2.65307 5.5122003,5.5122003 0 0 0 -0.50281,-2.30115 z"/><path fill="#e2e8f0" d="m 217.37949,335.29322 a 5.5122003,5.5122003 0 0 0 -5.51181,5.51233 5.5122003,5.5122003 0 0 0 5.51181,5.51232 5.5122003,5.5122003 0 0 0 4.83227,-2.85925 l -2.50114,-0.48369 a 3.1843031,3.1843031 0 0 1 -2.33113,1.01492 3.1843031,3.1843031 0 0 1 -3.18378,-3.1843 3.1843031,3.1843031 0 0 1 3.18378,-3.1843 3.1843031,3.1843031 0 0 1 2.60243,1.34875 l 2.40709,-0.4656 a 5.5122003,5.5122003 0 0 0 -5.00952,-3.21118 z"/></g></svg></span>
+        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.024133 11.02465" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-211.86768,-335.29324)"><path fill="#fe0708" d="m 222.38901,338.5044 -2.40709,0.4656 a 3.1843031,3.1843031 0 0 1 0.58239,1.83555 3.1843031,3.1843031 0 0 1 -0.85369,2.16938 l 2.50114,0.48369 a 5.5122003,5.5122003 0 0 0 0.68006,-2.65307 5.5122003,5.5122003 0 0 0 -0.50281,-2.30115 z"/><path fill="#0a0a0a" d="m 217.37949,335.29322 a 5.5122003,5.5122003 0 0 0 -5.51181,5.51233 5.5122003,5.5122003 0 0 0 5.51181,5.51232 5.5122003,5.5122003 0 0 0 4.83227,-2.85925 l -2.50114,-0.48369 a 3.1843031,3.1843031 0 0 1 -2.33113,1.01492 3.1843031,3.1843031 0 0 1 -3.18378,-3.1843 3.1843031,3.1843031 0 0 1 3.18378,-3.1843 3.1843031,3.1843031 0 0 1 2.60243,1.34875 l 2.40709,-0.4656 a 5.5122003,5.5122003 0 0 0 -5.00952,-3.21118 z"/></g></svg></span>
         <span class="pt-body">
-            <span class="pt-text">Prevent</span>
             <span class="pt-kind">Pillar</span>
+            <span class="pt-text">Prevent</span>
         </span>
     </div>
     <div class="pillar-tag pt-defense" data-pillar-tag="defense">
-        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.622029 12.038025" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-243.08595,-327.95105)"><path fill="#fe0708" d="m 254.15554,331.93994 -3.03909,0.58808 a 3.1843031,3.1843031 0 0 1 0.66611,1.94872 3.1843031,3.1843031 0 0 1 -0.63097,1.90272 l 2.42259,0.46819 a 5.5122003,5.5122003 0 0 0 0.53589,-2.33629 h 0.0455 z"/><path fill="#e2e8f0" d="m 252.94528,327.95104 -0.84646,0.52865 -0.84698,0.52916 0.55553,-0.003 v 0.98909 a 5.5122003,5.5122003 0 0 0 -3.20911,-1.03043 5.5122003,5.5122003 0 0 0 -5.51233,5.51181 5.5122003,5.5122003 0 0 0 5.51233,5.51232 5.5122003,5.5122003 0 0 0 4.97592,-3.14141 l -2.42259,-0.46819 a 3.1843031,3.1843031 0 0 1 -2.55333,1.28158 3.1843031,3.1843031 0 0 1 -3.1843,-3.1843 3.1843031,3.1843031 0 0 1 3.1843,-3.1843 3.1843031,3.1843031 0 0 1 2.51819,1.23558 l 3.03909,-0.58808 v -2.94297 l 0.55242,-0.002 -0.88108,-0.52193 z"/></g></svg></span>
+        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.622029 12.038025" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-243.08595,-327.95105)"><path fill="#fe0708" d="m 254.15554,331.93994 -3.03909,0.58808 a 3.1843031,3.1843031 0 0 1 0.66611,1.94872 3.1843031,3.1843031 0 0 1 -0.63097,1.90272 l 2.42259,0.46819 a 5.5122003,5.5122003 0 0 0 0.53589,-2.33629 h 0.0455 z"/><path fill="#0a0a0a" d="m 252.94528,327.95104 -0.84646,0.52865 -0.84698,0.52916 0.55553,-0.003 v 0.98909 a 5.5122003,5.5122003 0 0 0 -3.20911,-1.03043 5.5122003,5.5122003 0 0 0 -5.51233,5.51181 5.5122003,5.5122003 0 0 0 5.51233,5.51232 5.5122003,5.5122003 0 0 0 4.97592,-3.14141 l -2.42259,-0.46819 a 3.1843031,3.1843031 0 0 1 -2.55333,1.28158 3.1843031,3.1843031 0 0 1 -3.1843,-3.1843 3.1843031,3.1843031 0 0 1 3.1843,-3.1843 3.1843031,3.1843031 0 0 1 2.51819,1.23558 l 3.03909,-0.58808 v -2.94297 l 0.55242,-0.002 -0.88108,-0.52193 z"/></g></svg></span>
         <span class="pt-body">
-            <span class="pt-text">Defense</span>
             <span class="pt-kind">Pillar</span>
+            <span class="pt-text">Defense</span>
         </span>
     </div>
     <div class="pillar-tag pt-architecture" data-pillar-tag="architecture">
-        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.622336 12.038316" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-227.76409,-322.54982)"><g transform="matrix(0.19616395,0,0,0.19616395,170.95132,259.99954)"><path fill="#fe0708" d="m 261.92375,277.92298 a 28.099966,28.099966 0 0 0 -28.09957,28.10009 28.099966,28.099966 0 0 0 28.09957,28.1001 28.099966,28.099966 0 0 0 28.1001,-28.1001 28.099966,28.099966 0 0 0 -28.1001,-28.10009 z m 0,11.86697 a 16.232866,16.232866 0 0 1 16.23312,16.23312 16.232866,16.232866 0 0 1 -16.23312,16.23312 16.232866,16.232866 0 0 1 -16.2326,-16.23312 16.232866,16.232866 0 0 1 16.2326,-16.23312 z"/><g transform="matrix(1.360459,0,0,-1,-198.61682,594.36935)" fill="#fe0708"><rect width="8.7992821" height="28.806591" x="317.69418" y="259.7157"/><path d="m 50.709554,43.804741 -4.569632,-1.742196 -4.569633,-1.742195 3.793602,-3.08632 3.793602,-3.08632 0.77603,4.828515 z" transform="matrix(1.2426737,-0.21845632,0.45747191,0.59341328,245.52027,245.55378)"/></g></g><g><g fill="#e2e8f0"><path fill="#fe0708" d="m 238.93115,325.86899 -2.38539,0.46096 a 3.1843031,3.1843031 0 0 1 0.51264,1.73219 3.1843031,3.1843031 0 0 1 -0.68627,1.97507 l 2.4412,0.47181 a 5.5122003,5.5122003 0 0 0 0.57309,-2.44688 5.5122003,5.5122003 0 0 0 -0.45527,-2.19315 z"/><path d="m 233.87409,322.54982 a 5.5122003,5.5122003 0 0 0 -5.51232,5.51232 5.5122003,5.5122003 0 0 0 5.51232,5.51233 5.5122003,5.5122003 0 0 0 4.93924,-3.06545 l -2.4412,-0.47181 a 3.1843031,3.1843031 0 0 1 -2.49804,1.20923 3.1843031,3.1843031 0 0 1 -3.1843,-3.1843 3.1843031,3.1843031 0 0 1 3.1843,-3.1843 3.1843031,3.1843031 0 0 1 2.67167,1.45211 l 2.38539,-0.46096 a 5.5122003,5.5122003 0 0 0 -5.05706,-3.31917 z"/><rect width="2.3482909" height="5.6508145" x="228.31656" y="-333.67853" transform="scale(1,-1)"/><path d="m 50.709554,43.804741 -4.569632,-1.742196 -4.569633,-1.742195 3.793602,-3.08632 3.793602,-3.08632 0.77603,4.828515 z" transform="matrix(0.33163607,0.04285325,0.12208691,-0.11640629,209.05528,336.45659)"/></g></g></g></svg></span>
+        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.622336 12.038316" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-227.76409,-322.54982)"><g transform="matrix(0.19616395,0,0,0.19616395,170.95132,259.99954)"><path fill="#fe0708" d="m 261.92375,277.92298 a 28.099966,28.099966 0 0 0 -28.09957,28.10009 28.099966,28.099966 0 0 0 28.09957,28.1001 28.099966,28.099966 0 0 0 28.1001,-28.1001 28.099966,28.099966 0 0 0 -28.1001,-28.10009 z m 0,11.86697 a 16.232866,16.232866 0 0 1 16.23312,16.23312 16.232866,16.232866 0 0 1 -16.23312,16.23312 16.232866,16.232866 0 0 1 -16.2326,-16.23312 16.232866,16.232866 0 0 1 16.2326,-16.23312 z"/><g transform="matrix(1.360459,0,0,-1,-198.61682,594.36935)" fill="#fe0708"><rect width="8.7992821" height="28.806591" x="317.69418" y="259.7157"/><path d="m 50.709554,43.804741 -4.569632,-1.742196 -4.569633,-1.742195 3.793602,-3.08632 3.793602,-3.08632 0.77603,4.828515 z" transform="matrix(1.2426737,-0.21845632,0.45747191,0.59341328,245.52027,245.55378)"/></g></g><g><g fill="#0a0a0a"><path fill="#fe0708" d="m 238.93115,325.86899 -2.38539,0.46096 a 3.1843031,3.1843031 0 0 1 0.51264,1.73219 3.1843031,3.1843031 0 0 1 -0.68627,1.97507 l 2.4412,0.47181 a 5.5122003,5.5122003 0 0 0 0.57309,-2.44688 5.5122003,5.5122003 0 0 0 -0.45527,-2.19315 z"/><path d="m 233.87409,322.54982 a 5.5122003,5.5122003 0 0 0 -5.51232,5.51232 5.5122003,5.5122003 0 0 0 5.51232,5.51233 5.5122003,5.5122003 0 0 0 4.93924,-3.06545 l -2.4412,-0.47181 a 3.1843031,3.1843031 0 0 1 -2.49804,1.20923 3.1843031,3.1843031 0 0 1 -3.1843,-3.1843 3.1843031,3.1843031 0 0 1 3.1843,-3.1843 3.1843031,3.1843031 0 0 1 2.67167,1.45211 l 2.38539,-0.46096 a 5.5122003,5.5122003 0 0 0 -5.05706,-3.31917 z"/><rect width="2.3482909" height="5.6508145" x="228.31656" y="-333.67853" transform="scale(1,-1)"/><path d="m 50.709554,43.804741 -4.569632,-1.742196 -4.569633,-1.742195 3.793602,-3.08632 3.793602,-3.08632 0.77603,4.828515 z" transform="matrix(0.33163607,0.04285325,0.12208691,-0.11640629,209.05528,336.45659)"/></g></g></g></svg></span>
         <span class="pt-body">
-            <span class="pt-text">Architecture</span>
             <span class="pt-kind">Pillar</span>
+            <span class="pt-text">Architecture</span>
         </span>
     </div>
     <div class="pillar-tag pt-governance" data-pillar-tag="governance">
-        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.024133 11.02465" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-211.86768,-335.29324)"><path fill="#fe0708" d="m 222.38901,338.5044 -2.40709,0.4656 a 3.1843031,3.1843031 0 0 1 0.58239,1.83555 3.1843031,3.1843031 0 0 1 -0.85369,2.16938 l 2.50114,0.48369 a 5.5122003,5.5122003 0 0 0 0.68006,-2.65307 5.5122003,5.5122003 0 0 0 -0.50281,-2.30115 z"/><path fill="#e2e8f0" d="m 217.37949,335.29322 a 5.5122003,5.5122003 0 0 0 -5.51181,5.51233 5.5122003,5.5122003 0 0 0 5.51181,5.51232 5.5122003,5.5122003 0 0 0 4.83227,-2.85925 l -2.50114,-0.48369 a 3.1843031,3.1843031 0 0 1 -2.33113,1.01492 3.1843031,3.1843031 0 0 1 -3.18378,-3.1843 3.1843031,3.1843031 0 0 1 3.18378,-3.1843 3.1843031,3.1843031 0 0 1 2.60243,1.34875 l 2.40709,-0.4656 a 5.5122003,5.5122003 0 0 0 -5.00952,-3.21118 z"/></g></svg></span>
+        <span class="pt-icon" aria-hidden="true"><svg viewBox="0 0 11.024133 11.02465" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(-211.86768,-335.29324)"><path fill="#fe0708" d="m 222.38901,338.5044 -2.40709,0.4656 a 3.1843031,3.1843031 0 0 1 0.58239,1.83555 3.1843031,3.1843031 0 0 1 -0.85369,2.16938 l 2.50114,0.48369 a 5.5122003,5.5122003 0 0 0 0.68006,-2.65307 5.5122003,5.5122003 0 0 0 -0.50281,-2.30115 z"/><path fill="#0a0a0a" d="m 217.37949,335.29322 a 5.5122003,5.5122003 0 0 0 -5.51181,5.51233 5.5122003,5.5122003 0 0 0 5.51181,5.51232 5.5122003,5.5122003 0 0 0 4.83227,-2.85925 l -2.50114,-0.48369 a 3.1843031,3.1843031 0 0 1 -2.33113,1.01492 3.1843031,3.1843031 0 0 1 -3.18378,-3.1843 3.1843031,3.1843031 0 0 1 3.18378,-3.1843 3.1843031,3.1843031 0 0 1 2.60243,1.34875 l 2.40709,-0.4656 a 5.5122003,5.5122003 0 0 0 -5.00952,-3.21118 z"/></g></svg></span>
         <span class="pt-body">
-            <span class="pt-text">Governance</span>
             <span class="pt-kind">Pillar</span>
+            <span class="pt-text">Governance</span>
         </span>
     </div>
 </div>`;
@@ -881,7 +947,7 @@
     box-shadow:
         0 10px 28px -10px rgba(15, 23, 42, 0.12),
         0 2px 8px rgba(15, 23, 42, 0.08);
-    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-family: Baskervville, Georgia, Cambria, "Times New Roman", serif;
     font-size: 0.78rem;
     line-height: 1.5;
     opacity: 0;
